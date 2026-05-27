@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Verify All Queries</title>
+<style>
+body{font-family:monospace;background:#0D1117;color:#C9D1D9;padding:20px;font-size:12px;}
+button{background:#238636;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin:4px;font-size:13px;}
+.ok{color:#3FB950;}.err{color:#F85149;}.warn{color:#E3B341;}
+pre{background:#161B22;border:1px solid #30363D;border-radius:8px;padding:14px;line-height:1.9;white-space:pre-wrap;}
+</style></head><body>
+<h2 style="color:#E6EDF3">Verify ALL queries after schema refresh</h2>
+<p style="color:#8B949E">Run this from GitHub Pages after refreshing ChefKrishAPI schema</p>
+<button onclick="runAll()">Run All Verification Tests</button>
+<pre id="out">Click button above...</pre>
+<script>
+const URL="https://9b0f64b5-graphql.production-orch-0336.neo4j.io/graphql";
+const KEY="d16v0PBfQhJqLwunefWZuYe9rVhqQusk";
+async function q(gql){
+  const r=await fetch(URL,{method:"POST",mode:"cors",
+    headers:{"Content-Type":"application/json","x-api-key":KEY},
+    body:JSON.stringify({query:gql})});
+  return r.json();
+}
+function log(m,c=""){document.getElementById("out").innerHTML+=`<span class="${c}">${m}\n</span>`;}
+
+async function runAll(){
+  document.getElementById("out").innerHTML="";
+  const tests=[
+    // Core node queries
+    {label:"staff (roles)",          gql:'{ staff { name role expertise } }',                                           key:"staff"},
+    {label:"dishes (count)",         gql:'{ dishes { name price isVeg spiceLevel mustTry isBeverage desc } }',          key:"dishes"},
+    {label:"timings",                gql:'{ timings { fullSummary lunchHours dinnerHours closedOn closedMessage buffetNote buffetHours } }', key:"timings"},
+    {label:"allergens",              gql:'{ allergens { name severity commonIn } }',                                    key:"allergens"},
+    {label:"restaurantFeatures",     gql:'{ restaurantFeatures { property value type } }',                              key:"restaurantFeatures"},
+    {label:"aboutuses",              gql:'{ aboutuses { city state communityRole recognition customerExperience menuType foodPhilosophy } }', key:"aboutuses"},
+    {label:"categories",             gql:'{ categories { name type mealTime } }',                                       key:"categories"},
+    {label:"restaurants",            gql:'{ restaurants { name location cuisine lunchHours dinnerHours knownFor } }',   key:"restaurants"},
+    // Filtered dish queries
+    {label:"dishes mustTry=true",    gql:'{ dishes(where:{mustTry:{eq:"true"}}){ name price } }',                       key:"dishes"},
+    {label:"dishes isVeg=true",      gql:'{ dishes(where:{isVeg:{eq:"true"}}){ name price } }',                         key:"dishes"},
+    {label:"dishes isBeverage=true", gql:'{ dishes(where:{isBeverage:{eq:"true"}}){ name price } }',                   key:"dishes"},
+    {label:"dishes Butter Chicken",  gql:'{ dishes(where:{name:{contains:"Butter"}}){ name price pairsWellWithDishes { name } } }', key:"dishes"},
+    {label:"dishes Shrimp",          gql:'{ dishes(where:{name:{contains:"Shrimp"}}){ name price } }',                  key:"dishes"},
+    {label:"dishes Biryani",         gql:'{ dishes(where:{name:{contains:"Biriyani"}}){ name price } }',                key:"dishes"},
+    // Relationship traversal
+    {label:"Category→INCLUDES→Dish", gql:'{ categories(where:{name:{eq:"Beverages"}}){ name includesDishes { name price } } }', key:"categories"},
+    {label:"Dish PAIRS_WELL_WITH",   gql:'{ dishes(where:{name:{contains:"Butter Chicken"}}){ name pairsWellWithDishes { name price } } }', key:"dishes"},
+    {label:"waiter filter",          gql:'{ staff(where:{role:{eq:"Waiter"}}){ name role } }',                          key:"staff"},
+    {label:"chef filter",            gql:'{ staff(where:{role:{in:["Chief Chef","Head Chef","Side Chef"]}}){ name role expertise } }', key:"staff"},
+  ];
+
+  for(const t of tests){
+    try{
+      const j=await q(t.gql);
+      if(j.errors){
+        log(`❌ ${t.label}: ${j.errors[0].message.substring(0,80)}`, "err");
+      }else{
+        const d=j.data?.[t.key];
+        const count=Array.isArray(d)?d.length:d?"1":"0";
+        const sample=Array.isArray(d)&&d[0]?` | sample: ${d[0].name||JSON.stringify(d[0]).substring(0,40)}`:"";
+        log(`✅ ${t.label}: ${count} results${sample}`, "ok");
+      }
+    }catch(e){log(`❌ ${t.label}: ${e.message}`,"err");}
+  }
+  log("\nAll ✅ = ready. Paste results to Claude.","warn");
+}
+</script></body></html>
